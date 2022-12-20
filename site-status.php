@@ -28,8 +28,8 @@ try {
 } catch (Throwable $th) {
     $resp = array_merge($resp, [
         'ok' => false,
-        'code' => $th->getCode(),
-        'msg' => $th->getMessage(),
+        'err' => $th->getMessage(),
+        'code' => strval($th->getCode()),
         'file' => $th->getFile(),
         'line' => $th->getLine()
     ]);
