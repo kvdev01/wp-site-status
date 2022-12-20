@@ -1,33 +1,29 @@
 <?php
 $_VERSION = 'v1.0';
-$sapi_name = php_sapi_name();
-$status_code = null;
-$resp = [
-    'ok' => true,
-    'version' => $_VERSION,
-];
 
 try {
-    $resp['hash'] = md5_file(__FILE__);
+    $status_code = null;
+    $resp = [
+        'ok' => true,
+        'version' => $_VERSION,
+        'hash' => md5_file(__FILE__),
+    ];
 
-    if ($sapi_name === 'cli') {
-    } else {
-        $action = $_GET['action'] ?? 'check_status';
-        switch ($action) {
-            case 'check_status':
-                $result = check_status();
-                $resp = array_merge($resp, $result);
-                break;
-            case 'self_update':
-                $result = self_update();
-                $resp = array_merge($resp, $result);
-                break;
-            case 'version':
-                break;
-            default:
-                $status_code = 400;
-                throw new Exception('unsupported action', 400);
-        }
+    $action = $_GET['action'] ?? 'check_status';
+    switch ($action) {
+        case 'check_status':
+            $result = check_status();
+            $resp = array_merge($resp, $result);
+            break;
+        case 'self_update':
+            $result = self_update();
+            $resp = array_merge($resp, $result);
+            break;
+        case 'version':
+            break;
+        default:
+            $status_code = 400;
+            throw new Exception('unsupported action', 400);
     }
 } catch (Throwable $th) {
     $resp = array_merge($resp, [
@@ -45,16 +41,9 @@ try {
         $status_code = 200;
     }
 
-    if ($sapi_name === 'cli') {
-        return [
-            'status_code' => $status_code,
-            'resp' => $resp,
-        ];
-    } else {
-        header('Content-Type: application/json; charset=utf-8');
-        http_response_code($status_code);
-        echo json_encode($resp);
-    }
+    header('Content-Type: application/json; charset=utf-8');
+    http_response_code($status_code);
+    echo json_encode($resp);
 }
 
 function check_status()
@@ -140,16 +129,32 @@ function self_update()
 {
     $url = 'https://raw.githubusercontent.com/kvdev01/wp-site-status/master/site-status.php';
     $tmp_file = __FILE__ . '.tmp';
-    if (file_put_contents($tmp_file, file_get_contents($url))) {
-        if (rename($tmp_file, __FILE__)) {
-            $result = require __FILE__;
-            return [
-                'updated' => $result['resp'],
-            ];
-        } else {
-            throw new Exception('failed to update', 'replace');
-        }
-    } else {
-        throw new Exception('failed to update', 'download');
+    $content = curl_get_file_contents($url);
+    if (empty($content)) {
+        throw new Exception('failed to update', 1);
     }
+
+    if (!file_put_contents($tmp_file, $content)) {
+        throw new Exception('failed to update', 2);
+    }
+
+    if (!rename($tmp_file, __FILE__)) {
+        throw new Exception('failed to update', 3);
+    }
+
+    return [];
+}
+
+function curl_get_file_contents($url)
+{
+    $c = curl_init();
+    curl_setopt($c, CURLOPT_RETURNTRANSFER, 1);
+    curl_setopt($c, CURLOPT_URL, $url);
+    $contents = curl_exec($c);
+    curl_close($c);
+
+    if ($contents) {
+        return $contents;
+    }
+    return false;
 }
